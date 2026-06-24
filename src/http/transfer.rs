@@ -42,6 +42,20 @@ pub(crate) fn transfer_router() -> axum::Router<RouterState> {
             },
         ),
     )
+    .route("/{id}/complete", axum::routing::post(async |axum::extract::State(state): axum::extract::State<RouterState>, axum::extract::Path(id): axum::extract::Path<String>|{
+        match logic::transfer::complete_transfer(id, &state.db).await {
+            Result::Ok(_)=>{},
+            Result::Err(e)=>{
+                if let Option::Some(err)= e.downcast_ref::<AzaResponse::<()>>(){
+                    return err.clone().into_response();
+                }
+                panic!("{e}");
+            }
+        };
+        AzaResponse::Success {
+            data: ()
+        }.into_response()
+    }))
 }
 
 #[derive(Clone, serde::Deserialize)]

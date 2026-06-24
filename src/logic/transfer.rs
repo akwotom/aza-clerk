@@ -45,7 +45,7 @@ pub async fn transfer_money(
                             return Result::Err(Box::from(AzaResponse::<()>::Failed {
                                 code: "balance_insufficient".to_string(),
                                 message: "The user's balance is insufficient".to_string(),
-                                http_code: axum::http::StatusCode::BAD_REQUEST,
+                                http_code: axum::http::StatusCode::NOT_ACCEPTABLE,
                             }));
                         }
                         "45009" => {
@@ -71,4 +71,44 @@ pub async fn transfer_money(
 }
 
 /// This method completes a pending transfer that was already begun.
-pub async fn complete_transfer(txn_id: String) {}
+pub async fn complete_transfer(
+    txn_id: String,
+    db: &DbHandle,
+) -> Result<(), Box<dyn std::error::Error>> {
+    match sqlx::query("CALL complete_transfer (?)")
+        .bind(txn_id)
+        .execute(&db.connect().await?)
+        .await
+    {
+        Result::Ok(_) => {}
+        Result::Err(e) => {
+            if let Some(db_err) = e.as_database_error() {
+                if let Option::Some(err_code) = db_err.code() {
+                    match err_code.to_string().as_str() {
+                        "45010" => {
+                            return Result::Err(Box::from(AzaResponse::<()>::Failed {
+                                code: "bad_state".to_string(),
+                                message: "The transaction is not in a state that can be completed."
+                                    .to_string(),
+                                http_code: axum::http::StatusCode::NOT_ACCEPTABLE,
+                            }));
+                        }
+                        "45011" => {
+                            return Result::Err(Box::from(AzaResponse::<()>::Failed {
+                                code: "entity_not_found".to_string(),
+                                message: "The transaction that is to be completed is either not found, or not a transfer. "
+                                    .to_string(),
+                                http_code: axum::http::StatusCode::NOT_FOUND,
+                            }));
+                        }
+                        _ => {}
+                    };
+
+                    return Result::Err(Box::from(e));
+                }
+            }
+            return Result::Err(Box::from(e));
+        }
+    };
+    Result::Ok(())
+}

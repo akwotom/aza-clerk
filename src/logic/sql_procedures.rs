@@ -146,14 +146,14 @@ const COMPUTE_BALANCE: &str = "
 
 const COMPLETE_TRANSFER: &str = "
     CREATE PROCEDURE IF NOT EXISTS complete_transfer (
-        IN transaction_id TEXT,
-        OUT has_changed INT
+        IN transaction_id TEXT
     )
     complete_transfer: BEGIN
 
         DECLARE
             src_account_id,
-            bene_account_id, -- Almost
+            bene_account_id,
+            bene_user_id,
             existing_state TEXT;
         DECLARE 
             txn_amount INT;
@@ -163,11 +163,13 @@ const COMPLETE_TRANSFER: &str = "
                 status,
                 transfer_src_account_id,
                 transfer_bene_account_id,
-                amount
+                transfer_bene_user_id,
+                amount_value
             INTO 
                 existing_state,
                 src_account_id, 
                 bene_account_id,
+                bene_user_id,
                 txn_amount
         FROM
             transactions 
@@ -176,9 +178,13 @@ const COMPLETE_TRANSFER: &str = "
         LIMIT 1
         FOR UPDATE;
 
+        IF src_account_id IS NULL THEN
+            SIGNAL SQLSTATE '45011' 
+                SET MESSAGE_TEXT = 'The transfer being completed was not found.';
+        END IF;
+
         IF existing_state = 'successful'
         THEN
-            SET has_changed = 0;
             LEAVE complete_transfer;
         END IF;
 
@@ -207,8 +213,6 @@ const COMPLETE_TRANSFER: &str = "
                 transactions
             SET
                 status = 'successful';
-
-            SET has_changed = 1;
         COMMIT;
         
     END
