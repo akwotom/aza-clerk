@@ -228,7 +228,9 @@ const COMPLETE_TRANSFER: &str = "
             UPDATE 
                 transactions
             SET
-                status = 'successful';
+                status = 'successful'
+            WHERE
+                id = transaction_id;
         COMMIT;
         
     END
