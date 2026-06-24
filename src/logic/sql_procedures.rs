@@ -25,6 +25,16 @@ const BEGIN_TRANSFER: &str = "
         DECLARE bene_account_id TEXT;
         DECLARE existing_txn TEXT;
 
+
+        CALL compute_account_balance (src_user_id, amt_currency, src_balance, src_account_id);
+
+
+        -- Now, if the balance is too low, let's throw an error
+        IF src_balance < amt_value THEN
+            SIGNAL SQLSTATE '45008'
+                SET MESSAGE_TEXT = 'User balance is insufficient';
+        END IF;
+
     
         -- We're obtaining a lock in the ledger for any debiting to that account id
         -- We do this before even computing the user's account balance, in order that the user 
@@ -33,14 +43,6 @@ const BEGIN_TRANSFER: &str = "
             WHERE 
                 account_id = src_account_id
         FOR UPDATE;
-
-        CALL compute_account_balance (src_user_id, amt_currency, src_balance, src_account_id);
-
-        -- Now, if the balance is too low, let's throw an error
-        IF src_balance < amt_value THEN
-            SIGNAL SQLSTATE '45008'
-                SET MESSAGE_TEXT = 'User balance is insufficient';
-        END IF;
 
         -- Now, let's create the transfer, then debit the sending user.
 
@@ -59,7 +61,7 @@ const BEGIN_TRANSFER: &str = "
                 id = txn_id
             LIMIT 1;
 
-            IF existing_txn IS NOT NULL AND existing_txn = '' 
+            IF existing_txn IS NOT NULL AND existing_txn <> '' 
             THEN
                 SIGNAL SQLSTATE '45009'
                     SET MESSAGE_TEXT = 'Transaction already exists';
@@ -120,22 +122,25 @@ const COMPUTE_BALANCE: &str = "
     BEGIN
         -- To compute the user's balance, by summing all amounts for the given account id.
 
-        SELECT 
-            SUM (amount) INTO out_balance
-            WHERE
-                user_id = in_user_id
-            AND
-                currency = in_currency;
-
-        -- First, let's find the id of the user's account that holds money in the stated currency.
-        
-        SELECT 
-            id INTO out_account_id
+        SELECT
+            (
+                CAST( COALESCE( (SELECT SUM(amount) FROM ledger WHERE account_id = accounts.id AND user_id = accounts.user_id), 0) AS SIGNED)
+            ),
+            id
+        INTO
+            out_balance,
+            out_account_id
+        FROM 
+            accounts
         WHERE
             currency = in_currency
         AND
             user_id = in_user_id
         LIMIT 1;
+        
+        IF out_balance IS NULL THEN
+            SET out_balance = 0;
+        END IF;
     END;
 ";
 
@@ -329,7 +334,8 @@ const CREDIT_USER: &str = "
 
         IF existing_txn IS NOT NULL AND existing_txn <> ''
         THEN
-            LEAVE credit_user; -- Transaction already created.
+            SIGNAL SQLSTATE '45009'
+                SET MESSAGE_TEXT = 'Transaction already exists';
         END IF;
 
 
