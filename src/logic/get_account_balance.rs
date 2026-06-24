@@ -21,7 +21,8 @@ pub async fn by_account_id(
                 (
                     CAST( COALESCE( (SELECT SUM(amount) FROM ledger WHERE account_id = accounts.id), 0) AS SIGNED)
                 ) AS amount_value,
-                id
+                id,
+                user_id
             FROM 
                 accounts
             WHERE
@@ -50,8 +51,9 @@ pub async fn by_user_id(
                 id,
                 currency AS amount_currency,
                 (
-                    CAST(COALESCE( (SELECT SUM (amount) FROM ledger WHERE user_id = ? ), 0) AS SIGNED)
-                ) AS amount_value
+                    CAST(COALESCE( (SELECT SUM (amount) FROM ledger WHERE ledger.user_id = ? AND account_id = accounts.id), 0) AS SIGNED)
+                ) AS amount_value,
+                user_id
             FROM accounts WHERE user_id = ?;
         ",
     )

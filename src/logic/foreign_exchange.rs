@@ -9,7 +9,7 @@ use crate::models::Amount;
 
 /// This method computes the equivalent of the given amount in the stated currency.
 pub async fn convert(from: Amount, to: String) -> i32 {
-    if (from.currency == to) {
+    if from.currency == to {
         return from.value;
     }
 

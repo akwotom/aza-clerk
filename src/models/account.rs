@@ -23,6 +23,7 @@ pub(crate) struct AccountBalance {
     pub id: String,
     #[sqlx(flatten)]
     amount: Amount,
+    pub user_id: Option<String>,
 }
 
 impl Account {
