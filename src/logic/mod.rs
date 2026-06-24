@@ -21,6 +21,8 @@ pub mod get_account_balance;
 
 mod uuid_string;
 
+pub mod foreign_exchange;
+
 pub use uuid_string::*;
 
 pub async fn init(db: &DbHandle) -> Result<(), sqlx::Error> {

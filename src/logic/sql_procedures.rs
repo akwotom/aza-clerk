@@ -14,7 +14,9 @@ const BEGIN_TRANSFER: &str = "
         IN src_user_id TEXT, 
         IN bene_user_id TEXT, 
         IN amt_value INT, 
-        IN amt_currency TEXT
+        IN amt_currency TEXT,
+        IN funding_amt_value INT,
+        IN funding_amt_currency TEXT
     )
     BEGIN
         -- First, let's make sure this transfer has not already happened.
@@ -25,12 +27,18 @@ const BEGIN_TRANSFER: &str = "
         DECLARE bene_account_id TEXT;
         DECLARE existing_txn TEXT;
 
+        IF funding_amt_currency IS NULL 
+        THEN
+            SET funding_amt_currency = amt_currency;
+            SET funding_amt_value = amt_value;
+        END IF;
 
-        CALL compute_account_balance (src_user_id, amt_currency, src_balance, src_account_id);
+
+        CALL compute_account_balance (src_user_id, funding_amt_currency, src_balance, src_account_id);
 
 
         -- Now, if the balance is too low, let's throw an error
-        IF src_balance < amt_value THEN
+        IF src_balance < funding_amt_value THEN
             SIGNAL SQLSTATE '45008'
                 SET MESSAGE_TEXT = 'User balance is insufficient';
         END IF;
@@ -67,8 +75,6 @@ const BEGIN_TRANSFER: &str = "
                     SET MESSAGE_TEXT = 'Transaction already exists';
             END IF;
 
-            CALL get_or_create_account (src_user_id, amt_currency, bene_account_id);
-
             -- And if the transaction doesn't exist, let's create it
 
             INSERT INTO transactions (
@@ -80,6 +86,8 @@ const BEGIN_TRANSFER: &str = "
                 transfer_src_account_id,
                 transfer_bene_user_id,
                 transfer_bene_account_id,
+                transfer_funding_amount_value,
+                transfer_funding_amount_currency,
                 status
             ) VALUES (
                 txn_id,
@@ -90,6 +98,8 @@ const BEGIN_TRANSFER: &str = "
                 src_account_id,
                 bene_user_id,
                 bene_account_id,
+                funding_amt_value,
+                funding_amt_currency,
                 'pending'
             );
             
@@ -103,7 +113,7 @@ const BEGIN_TRANSFER: &str = "
             VALUES (
                 src_account_id,
                 src_user_id,
-                amt_value * -1, -- We're debiting the source account
+                funding_amt_value * -1, -- We're debiting the source account
                 txn_id
             );
 
@@ -154,6 +164,7 @@ const COMPLETE_TRANSFER: &str = "
             src_account_id,
             bene_account_id,
             bene_user_id,
+            currency,
             existing_state TEXT;
         DECLARE 
             txn_amount INT;
@@ -164,13 +175,15 @@ const COMPLETE_TRANSFER: &str = "
                 transfer_src_account_id,
                 transfer_bene_account_id,
                 transfer_bene_user_id,
-                amount_value
+                amount_value,
+                amount_currency
             INTO 
                 existing_state,
                 src_account_id, 
                 bene_account_id,
                 bene_user_id,
-                txn_amount
+                txn_amount,
+                currency
         FROM
             transactions 
         WHERE
@@ -196,6 +209,9 @@ const COMPLETE_TRANSFER: &str = "
 
 
         START TRANSACTION;
+
+            CALL get_or_create_account (bene_user_id, currency, bene_account_id);
+
             INSERT INTO ledger (
                 account_id,
                 user_id,

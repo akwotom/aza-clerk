@@ -25,6 +25,9 @@ pub struct Transaction {
     pub transfer_bene_user_id: Option<String>,
     pub transfer_bene_account_id: Option<String>,
 
+    pub transfer_funding_amount_value: Option<i32>,
+    pub transfer_funding_amount_currency: Option<String>,
+
     /// If present, it represents the beneficiary of a transaction meant to top_up the user's account balance.
     pub top_up_bene_user_id: Option<String>,
     pub top_up_bene_account_id: Option<String>,
@@ -65,6 +68,9 @@ impl Transaction {
 
                 transfer_bene_user_id VARCHAR(64),
                 transfer_bene_account_id VARCHAR(64),
+
+                transfer_funding_amount_value INT,
+                transfer_funding_amount_currency TEXT,
 
                 top_up_bene_user_id VARCHAR(64),
                 top_up_bene_account_id VARCHAR(64),

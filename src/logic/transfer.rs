@@ -7,7 +7,7 @@
 
 use crate::{
     http::response::AzaResponse,
-    logic::{check_uuid_string, db::DbHandle},
+    logic::{check_uuid_string, db::DbHandle, foreign_exchange},
     models::Amount,
 };
 
@@ -17,6 +17,7 @@ pub async fn transfer_money(
     amount: Amount,
     funding_user_id: String,
     recipient_user_id: String,
+    funding_currency: Option<String>,
     db: &DbHandle,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // First, we need to be sure that the user has sufficient balance.
@@ -27,12 +28,24 @@ pub async fn transfer_money(
 
     check_uuid_string(&txn_id)?;
 
-    match sqlx::query("CALL begin_transfer (?, ?, ?, ?, ?);")
+    let mut funding_amount = amount.clone();
+
+    // Now, if the transaction is to happen in a different currency, let's compute the transaction fees
+    if let Option::Some(funding_currency) = funding_currency {
+        funding_amount = Amount {
+            currency: funding_currency.clone(),
+            value: foreign_exchange::convert(funding_amount, funding_currency).await,
+        }
+    }
+
+    match sqlx::query("CALL begin_transfer (?, ?, ?, ?, ?, ?, ?);")
         .bind(txn_id)
         .bind(funding_user_id)
         .bind(recipient_user_id)
         .bind(amount.value)
         .bind(amount.currency)
+        .bind(funding_amount.value)
+        .bind(funding_amount.currency)
         .execute(&(db.connect().await?))
         .await
     {

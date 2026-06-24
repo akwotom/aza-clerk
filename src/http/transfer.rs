@@ -25,6 +25,7 @@ pub(crate) fn transfer_router() -> axum::Router<RouterState> {
                     demand.amount,
                     demand.funding_user_id,
                     demand.recipient_user_id,
+                    demand.funding_currency,
                     &state.db,
                 )
                 .await
@@ -65,4 +66,5 @@ pub struct StartTransferDemand {
     amount: Amount,
     funding_user_id: String,
     recipient_user_id: String,
+    funding_currency: Option<String>,
 }
