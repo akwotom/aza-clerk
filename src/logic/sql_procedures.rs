@@ -34,7 +34,7 @@ const BEGIN_TRANSFER: &str = "
                 account_id = src_account_id
         FOR UPDATE;
 
-        CALL compute_user_balance (src_user_id, amt_currency, src_balance, src_account_id);
+        CALL compute_account_balance (src_user_id, amt_currency, src_balance, src_account_id);
 
         -- Now, if the balance is too low, let's throw an error
         IF src_balance < amt_value THEN
@@ -173,7 +173,7 @@ const COMPLETE_TRANSFER: &str = "
 
         IF existing_state = 'successful'
         THEN
-            SET has_changed = 0; -- plum
+            SET has_changed = 0;
             LEAVE complete_transfer;
         END IF;
 
