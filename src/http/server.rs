@@ -7,17 +7,17 @@
 
 use crate::{
     http::{account::account_router, response::AzaResponse, transfer::transfer_router},
-    logic::db::DbHandle,
+    logic::{db::DbHandle, foreign_exchange::ForeignExchange},
 };
 
 use axum::response::IntoResponse;
 
-pub async fn create_server(http_port: i32, db: DbHandle) -> () {
+pub async fn create_server(http_port: i32, db: DbHandle, fx: ForeignExchange) -> () {
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{http_port}"))
         .await
         .unwrap();
 
-    let state = RouterState { db };
+    let state = RouterState { db, fx: fx };
 
     fn cors_headers() -> axum::http::HeaderMap {
         let mut headers = axum::http::HeaderMap::new();
@@ -83,4 +83,5 @@ pub async fn create_server(http_port: i32, db: DbHandle) -> () {
 #[derive(Clone)]
 pub struct RouterState {
     pub(crate) db: DbHandle,
+    pub(crate) fx: ForeignExchange,
 }

@@ -6,8 +6,8 @@
 */
 
 use crate::{
-    http::response::AzaResponse,
-    logic::{check_uuid_string, db::DbHandle, foreign_exchange},
+    http::{response::AzaResponse, server::RouterState},
+    logic::{check_uuid_string, db::DbHandle},
     models::Amount,
 };
 
@@ -18,7 +18,8 @@ pub async fn transfer_money(
     funding_user_id: String,
     recipient_user_id: String,
     funding_currency: Option<String>,
-    db: &DbHandle,
+    state: &RouterState,
+    // fx: ForeignExchange,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // First, we need to be sure that the user has sufficient balance.
     // There's a stored procedure for just beginning transfers,
@@ -34,7 +35,10 @@ pub async fn transfer_money(
     if let Option::Some(funding_currency) = funding_currency {
         funding_amount = Amount {
             currency: funding_currency.clone(),
-            value: foreign_exchange::convert(funding_amount, funding_currency).await,
+            value: match state.fx.convert(funding_amount, funding_currency).await {
+                Result::Ok(v) => v,
+                Result::Err(e) => return Result::Err(e),
+            },
         }
     }
 
@@ -46,7 +50,7 @@ pub async fn transfer_money(
         .bind(amount.currency)
         .bind(funding_amount.value)
         .bind(funding_amount.currency)
-        .execute(&(db.connect().await?))
+        .execute(&(state.db.connect().await?))
         .await
     {
         Result::Ok(_) => {}

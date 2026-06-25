@@ -5,6 +5,8 @@
 
 */
 
+use crate::logic::foreign_exchange::ForeignExchange;
+
 mod http;
 mod logic;
 mod models;
@@ -13,12 +15,16 @@ mod models;
 async fn main() {
     dotenvy::dotenv().ok();
 
-    let db_env_name = "MYSQL_DATABASE_URL";
-    let db_url = std::env::var(db_env_name)
-        .map_err(|_| {
-            format!("Could not connect to the database, because {db_env_name} was not set.\n")
-        })
-        .unwrap();
+    let db_url = get_env(
+        "MYSQL_DATABASE_URL",
+        "Could not connect to the database, because",
+    );
+
+    let fx_api_key = get_env(
+        "FX_API_KEY",
+        "Currency conversion API key is missing, because",
+    );
+
     let db = logic::db::DbHandle::new(db_url);
 
     logic::init(&db).await.unwrap();
@@ -39,7 +45,16 @@ async fn main() {
         )
     }).unwrap();
 
-    http::server::create_server(port, db).await;
+    http::server::create_server(port, db, ForeignExchange::new(fx_api_key)).await;
+}
 
-    println!("Okay. All good!");
+fn get_env(key_name: &str, err_template: &str) -> String {
+    std::env::var(key_name)
+        .map_err(|_| {
+            format!(
+                "{} '{key_name}' environment variable was not set.\n",
+                err_template
+            )
+        })
+        .unwrap()
 }
